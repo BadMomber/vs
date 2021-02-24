@@ -1,0 +1,249 @@
+version: '3.7'
+services:
+  haproxy:
+    restart: always
+    container_name: "haproxy"
+    build:
+      context: .
+      dockerfile: dockerfiles/haproxy
+    environment:
+      - 'grpc-server-one'
+      - 'grpc-server-two'
+      - 'grpc-server-three'
+    ports:
+      - 1337:1337
+    depends_on:
+      - grpc-server-one
+      - grpc-server-two
+      - grpc-server-three
+#------- Redis --------------/
+  redis:
+    restart: always
+    container_name: "redis"
+    image: redis:6-alpine
+    command: redis-server --requirepass yourpassword
+    ports:
+      - 6379:6379
+  redis-two:
+    container_name: "redis-two"
+    image: redis:6-alpine
+    command: redis-server --requirepass yourpassword --port 6380
+    ports:
+      - 6380:6380
+#------- First batch of sensors --------------/
+  sensor-tank:
+    restart: always
+    depends_on:
+      - central-one
+    container_name: "tank"
+    image: sensor:latest
+    build:
+      context: .
+      dockerfile: dockerfiles/sensor
+    environment:
+      - 'ip=central-one'
+      - 'ipBroker=mosquitto'
+      - 'port=60000'
+      - 'sensortype=tank'
+  sensor-traffic:
+    restart: always
+    depends_on:
+      - central-one
+    container_name: "traffic"
+    image: sensor:latest
+    environment:
+      - 'ip=central-one'
+      - 'ipBroker=mosquitto'
+      - 'port=60001'
+      - 'sensortype=traffic'
+  sensor-mean-speed:
+    restart: always
+    depends_on:
+      - central-one
+    container_name: "mean_speed"
+    image: sensor:latest
+    environment:
+       - 'ip=central-one'
+       - 'ipBroker=mosquitto'
+       - 'port=60002'
+       - 'sensortype=mean_speed'
+  sensor-mileage:
+    restart: always
+    depends_on:
+      - central-one
+    container_name: "mileage"
+    image: sensor:latest
+    environment:
+      - 'ip=central-one'
+      - 'ipBroker=mosquitto'
+      - 'port=60003'
+      - 'sensortype=mileage'
+  #------- First central --------------/
+  central-one:
+    restart: always
+    container_name: "central-one"
+    build:
+      context: .
+      dockerfile: dockerfiles/central
+    environment:
+      - 'port=8080'
+      - 'ip=redis'
+      - 'ipGrpc=grpc-server-one'
+      - 'centralname=Toyota'
+      - 'sensorcount=4'
+      - 'sensorstartport=60000'
+    ports:
+      - 8080:8080
+    depends_on:
+      - grpc-server-one
+  #------- Second batch of sensors --------------/
+  sensor-tank_two:
+    restart: always
+    depends_on:
+      - central-two
+    container_name: "tank_two"
+    image: sensor:latest
+    build:
+      context: .
+      dockerfile: dockerfiles/sensor
+    environment:
+      - 'ip=central-two'
+      - 'ipBroker=mosquitto'
+      - 'port=60000'
+      - 'sensortype=tank_two'
+  sensor-traffic_two:
+    restart: always
+    depends_on:
+      - central-two
+    container_name: "traffic_two"
+    image: sensor:latest
+    environment:
+      - 'ip=central-two'
+      - 'ipBroker=mosquitto'
+      - 'port=60001'
+      - 'sensortype=traffic_two'
+  sensor-mean-speed_two:
+    restart: always
+    depends_on:
+      - central-two
+    container_name: "mean_speed_two"
+    image: sensor:latest
+    environment:
+      - 'ip=central-two'
+      - 'ipBroker=mosquitto'
+      - 'port=60002'
+      - 'sensortype=mean_speed_two'
+  sensor-mileage_two:
+    restart: always
+    depends_on:
+      - central-two
+    container_name: "mileage_two"
+    image: sensor:latest
+    environment:
+      - 'ip=central-two'
+      - 'ipBroker=mosquitto'
+      - 'port=60003'
+      - 'sensortype=mileage_two'
+#------- Second central --------------/
+  central-two:
+    restart: always
+    container_name: "central-two"
+    build:
+      context: .
+      dockerfile: dockerfiles/central
+    environment:
+      - 'port=8081'
+      - 'ip=redis-two'
+      - 'ipGrpc=grpc-server-two'
+      - 'centralname=Mercedes'
+      - 'sensorcount=4'
+      - 'sensorstartport=60000'
+    ports:
+      - 8081:8081
+    depends_on:
+      - grpc-server-one
+#------- gRPC cluster --------------/
+  grpc-server-one:
+    restart: always
+    depends_on:
+      - postgres-server-one
+    container_name: "grpc-server-one"
+    build:
+        context: .
+        dockerfile: dockerfiles/grpc
+    environment:
+      - 'ipCloudserver=postgres-server-one'
+      - 'name=grpc-server-one'
+    ports:
+      - 60010:60010
+
+  grpc-server-two:
+    restart: always
+    depends_on:
+      - postgres-server-two
+    container_name: "grpc-server-two"
+    build:
+      context: .
+      dockerfile: dockerfiles/grpc
+    environment:
+      - 'ipCloudserver=postgres-server-two'
+      - 'name=grpc-server-two'
+    ports:
+      - 60020:60020
+
+  grpc-server-three:
+    restart: always
+    depends_on:
+      - postgres-server-three
+    container_name: "grpc-server-three"
+    build:
+      context: .
+      dockerfile: dockerfiles/grpc
+    environment:
+      - 'ipCloudserver=postgres-server-three'
+      - 'name=grpc-server-three'
+    ports:
+      - 60030:60030
+#------- MQTT broker --------------/
+  mosquitto:
+    restart: always
+    container_name: "mosquitto"
+    image: eclipse-mosquitto:2.0.5
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - "./mosquitto.conf:/mosquitto/config/mosquitto.conf"
+#------- Postgresql Cluster  --------------/
+  postgres-server-one:
+    restart: always
+    depends_on:
+      - redis
+    container_name: "postgres-server-one"
+    build:
+      context: .
+      dockerfile: dockerfiles/postgres
+    ports:
+      - 5432:5432
+
+  postgres-server-two:
+    restart: always
+    depends_on:
+      - redis
+    container_name: "postgres-server-two"
+    build:
+      context: .
+      dockerfile: dockerfiles/postgres
+    ports:
+      - 5433:5432
+
+  postgres-server-three:
+    restart: always
+    depends_on:
+      - redis
+    container_name: "postgres-server-three"
+    build:
+      context: .
+      dockerfile: dockerfiles/postgres
+    ports:
+      - 5434:5432

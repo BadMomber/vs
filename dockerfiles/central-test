@@ -1,0 +1,26 @@
+FROM maven:3.6-jdk-11 AS build
+
+#Build car-dependency cache
+COPY /car/central/pom.xml /usr/central/pom.xml
+WORKDIR /usr/central
+RUN mvn dependency:go-offline
+
+#Build central
+COPY /car/central/ /usr/central/
+RUN mvn -T 1C -f /usr/central/pom.xml clean package -Dmaven.test.skip -DskipTests -Dmaven.javadoc.skip=true
+
+# Application Container
+FROM openjdk:9
+COPY --from=build /usr/central/target /usr/app
+
+# default parameters
+ARG centralname="Generic"
+ARG sensorcount=4
+ARG sensorstartport=51020
+
+# Expose all the ports for the sensors and management interface 
+EXPOSE 8080 60000 60001 60002 60003
+
+COPY Docker/central-test.sh /run-test.sh
+
+ENTRYPOINT ["sh","/run-test.sh"]

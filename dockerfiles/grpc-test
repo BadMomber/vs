@@ -1,0 +1,21 @@
+FROM maven:3.6-jdk-11 AS build
+
+#Build grpcserver-dependency cache
+COPY /grpcserver/pom.xml /usr/grpcserver/pom.xml
+WORKDIR /usr/grpcserver
+RUN mvn dependency:go-offline
+
+#Build server
+COPY /grpcserver/ /usr/grpcserver/
+COPY /car/central/src/main/java/grpc /usr/grpcserver/src/main/java/grpc
+RUN mvn -T 1C -f /usr/grpcserver/pom.xml clean package -Dmaven.test.skip -DskipTests -Dmaven.javadoc.skip=true
+
+# Application Container
+FROM openjdk:9
+COPY --from=build /usr/grpcserver/target /usr/app
+
+COPY Docker/grpcserver-test.sh /run-test.sh
+
+EXPOSE 60010
+
+ENTRYPOINT ["sh","/run-test.sh"]

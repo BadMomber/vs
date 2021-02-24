@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option java_package = "grpc";
+
+service server{
+  rpc send(Data) returns(Confirmation) {};
+}
+
+message Data{
+  string jsonString = 1;
+  string senderName = 2;
+}
+
+message Confirmation{
+  string confirmationText = 1;
+}
